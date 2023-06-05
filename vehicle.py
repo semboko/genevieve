@@ -1,9 +1,11 @@
 import pygame
+from random import randint
 from pygame.surface import Surface
 from game import AbsctractScene, Game, convert
-from pymunk import Space, Body, Segment, Vec2d, Poly, Circle, PivotJoint, ShapeFilter, SimpleMotor
+from pymunk import Space, Body, Segment, Vec2d, Poly, Circle, PivotJoint, ShapeFilter, SimpleMotor, GearJoint
 from math import ceil, degrees
 from typing import Sequence
+from vnoise import Noise
 
 
 class Background:
@@ -98,6 +100,11 @@ class Car:
             
         self.motor = SimpleMotor(self.wheels[0].body, self.body, 0)
         space.add(self.motor)
+        
+        space.add(
+            GearJoint(self.wheels[0].body, self.wheels[1].body, 0, 1),
+            GearJoint(self.wheels[0].body, self.wheels[2].body, 0, 1),
+        )
             
     def accelerate(self, rate: int):
         self.motor.rate += rate
@@ -107,13 +114,14 @@ class Car:
         pos = convert(self.body.position, display.get_height())
         pos = pygame.Vector2(pos) - pygame.Vector2(shift_x, 0)
         
-        dest_rect = self.img.get_rect(center=pos)
-        display.blit(self.img, dest_rect)
+        rotated_img = pygame.transform.rotate(self.img, degrees(self.body.angle))
+        dest_rect = rotated_img.get_rect(center=pos)
+        display.blit(rotated_img, dest_rect)
         
         # vertices = self.shape.get_vertices()
         # points = []
         # for v in vertices:
-        #     world_v = self.body.local_to_world(v)
+        #     world_v = self.body.local_to_world(v) - Vec2d(shift_x, 0)
         #     point = convert(world_v, display.get_height())
         #     points.append(point)
         
@@ -151,23 +159,61 @@ class Wheel:
     
 
 class Terrain:
-    def __init__(self, width: int, y: int, space: Space) -> None:
-        self.body = Body(body_type=Body.STATIC)
-        self.body.position = width/2, y
-        self.shape = Segment(self.body, (-width/2, 0), (width/2, 0), 1)
-        self.shape.density = 1
-        self.shape.friction = 1
-        space.add(self.body, self.shape)
+    def __init__(
+        self, 
+        x_min: float, 
+        x_max: float, 
+        steps: int, 
+        y_min: float, 
+        y_max: float, 
+        space: Space
+    ) -> None:
+        
+        terrain_width = x_max - x_min
+        segment_width = terrain_width // steps
+        
+        self.segments = []
+        
+        
+        noise = Noise().noise1
+        
+        get_y = lambda x: y_min + noise(x/200) * (y_max - y_min)
+        
+        for x_start in range(x_min, x_max, segment_width):
+            if not self.segments:
+                y_start = get_y(x_start)
+            else:   
+                prev_body, prev_shape = self.segments[-1]
+                prev_world_b = prev_body.local_to_world(prev_shape.b)
+                y_start = prev_world_b.y
+            
+            x_end = x_start + segment_width
+            y_end = get_y(x_start)
+            
+            body = Body(body_type=Body.STATIC)
+            body.position = x_start, y_start
+            
+            shape = Segment(body, (0, 0), body.world_to_local((x_end, y_end)), 5)
+            shape.density = 1
+            shape.friction = 1
+            
+            space.add(body, shape)
+            
+            self.segments.append((body, shape))
+            
+    def update_segments(self, shift_x: int):
+        pass
     
     def render(self, display: Surface, shift_x: float):
         h = display.get_height()
-        a = convert(self.body.local_to_world(self.shape.a), h)
-        b = convert(self.body.local_to_world(self.shape.b), h)
-        
-        a = pygame.Vector2(a) - pygame.Vector2(shift_x, 0)
-        b = pygame.Vector2(b) - pygame.Vector2(shift_x, 0)
-        
-        pygame.draw.line(display, (255, 255, 255), a, b, 3)
+        for body, shape in self.segments:
+            a = convert(body.local_to_world(shape.a), h)
+            b = convert(body.local_to_world(shape.b), h)
+            
+            a = pygame.Vector2(a) - pygame.Vector2(shift_x, 0)
+            b = pygame.Vector2(b) - pygame.Vector2(shift_x, 0)
+            
+            pygame.draw.line(display, (255, 255, 255), a, b, 3)
 
 
 class VehicleScene(AbsctractScene):
@@ -175,7 +221,7 @@ class VehicleScene(AbsctractScene):
         self.space = Space()
         self.space.gravity = 0, -1000
         self.car = Car(Vec2d(200, 300), self.space)
-        self.terrain = Terrain(1500, 50, self.space)
+        self.terrain = Terrain(0, 1500, 100, 50, 150, self.space)
         self.bg = Background()
         
         self.origin_x = self.car.body.position.x
