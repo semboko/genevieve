@@ -2,11 +2,15 @@ import pygame
 from random import randint
 from pygame.surface import Surface
 from game import AbsctractScene, Game, convert
-from pymunk import Space, Body, Segment, Vec2d, Poly, Circle, PivotJoint, ShapeFilter, SimpleMotor, GearJoint
+from pymunk import Space, Body, Segment, Vec2d, Poly, Circle, PivotJoint, ShapeFilter, SimpleMotor, GearJoint, Shape
 from math import ceil, degrees
-from typing import Sequence
+from typing import Sequence, Tuple
 from vnoise import Noise
 
+
+x0 = 200
+WINDOW_WIDTH = 1500
+WINDOW_HEIGHT = 500
 
 class Background:
     def __init__(self) -> None:
@@ -166,44 +170,63 @@ class Terrain:
         steps: int, 
         y_min: float, 
         y_max: float, 
-        space: Space
+        space: Space,
     ) -> None:
         
         terrain_width = x_max - x_min
-        segment_width = terrain_width // steps
-        
+        self.segment_width = terrain_width // steps
+        self.space = space
         self.segments = []
         
         
         noise = Noise().noise1
         
-        get_y = lambda x: y_min + noise(x/200) * (y_max - y_min)
+        self.get_y = lambda x: y_min + noise(x/500) * (y_max - y_min)
         
-        for x_start in range(x_min, x_max, segment_width):
+        for x_start in range(x_min, x_max, self.segment_width):
             if not self.segments:
-                y_start = get_y(x_start)
+                y_start = self.get_y(x_start)
             else:   
                 prev_body, prev_shape = self.segments[-1]
                 prev_world_b = prev_body.local_to_world(prev_shape.b)
                 y_start = prev_world_b.y
             
-            x_end = x_start + segment_width
-            y_end = get_y(x_start)
+            x_end = x_start + self.segment_width
+            y_end = self.get_y(x_start)
             
-            body = Body(body_type=Body.STATIC)
-            body.position = x_start, y_start
-            
-            shape = Segment(body, (0, 0), body.world_to_local((x_end, y_end)), 5)
-            shape.density = 1
-            shape.friction = 1
-            
+            body, shape = self.create_segment(Vec2d(x_start, y_start), Vec2d(x_end, y_end))
             space.add(body, shape)
-            
             self.segments.append((body, shape))
             
+    def create_segment(self, a: Vec2d, b: Vec2d) -> Tuple[Body, Shape]:
+        body = Body(body_type=Body.STATIC)
+        body.position = a
+        
+        shape = Segment(body, (0, 0), body.world_to_local(b), 5)
+        shape.density = 1
+        shape.friction = 1
+        return (body, shape)
+            
     def update_segments(self, shift_x: int):
-        pass
-    
+        rx = self.segments[-1][0].position.x + self.segment_width
+        lx = self.segments[0][0].position.x
+        
+        xrscreen = x0 + shift_x + WINDOW_WIDTH - x0
+        # TODO: xlscreen = 
+        
+        if rx < xrscreen:
+            for x_start in range(int(rx), int(xrscreen), self.segment_width):
+                x_end = x_start + self.segment_width
+                last_body, last_shape = self.segments[-1]
+                y_start = last_body.local_to_world(last_shape.b).y
+                y_end = self.get_y(x_end)
+                new_segment = self.create_segment(Vec2d(x_start, y_start), Vec2d(x_end, y_end))
+                self.space.add(*new_segment)
+                self.segments.append(new_segment)
+        
+        # if lx > xlscreen:
+            # for ...
+        
     def render(self, display: Surface, shift_x: float):
         h = display.get_height()
         for body, shape in self.segments:
@@ -220,7 +243,7 @@ class VehicleScene(AbsctractScene):
     def __init__(self) -> None:
         self.space = Space()
         self.space.gravity = 0, -1000
-        self.car = Car(Vec2d(200, 300), self.space)
+        self.car = Car(Vec2d(x0, 300), self.space)
         self.terrain = Terrain(0, 1500, 100, 50, 150, self.space)
         self.bg = Background()
         
@@ -239,7 +262,7 @@ class VehicleScene(AbsctractScene):
         
     def update(self) -> None:
         self.space.step(1/60)
-        
+        self.terrain.update_segments(self.get_distance())
         pk = pygame.key.get_pressed()
         self.handle_pressed_keys(pk)
         self.car.motor.rate *= 0.95
@@ -253,7 +276,7 @@ class VehicleScene(AbsctractScene):
         
 
 game = Game(
-    window_size=(1500, 500),
+    window_size=(WINDOW_WIDTH, WINDOW_HEIGHT),
     background_color=(0, 8, 150),
     fps=60,
 )
