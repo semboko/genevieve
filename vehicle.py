@@ -6,6 +6,7 @@ from pymunk import Space, Body, Segment, Vec2d, Poly, Circle, PivotJoint, ShapeF
 from math import ceil, degrees
 from typing import Sequence, Tuple
 from vnoise import Noise
+from pendulum import Ball
 
 
 x0 = 200
@@ -212,7 +213,7 @@ class Terrain:
         lx = self.segments[0][0].position.x
         
         xrscreen = x0 + shift_x + WINDOW_WIDTH - x0
-        # TODO: xlscreen = 
+        xlscreen = xrscreen - WINDOW_WIDTH
         
         if rx < xrscreen:
             for x_start in range(int(rx), int(xrscreen), self.segment_width):
@@ -220,12 +221,25 @@ class Terrain:
                 last_body, last_shape = self.segments[-1]
                 y_start = last_body.local_to_world(last_shape.b).y
                 y_end = self.get_y(x_end)
-                new_segment = self.create_segment(Vec2d(x_start, y_start), Vec2d(x_end, y_end))
+                new_segment = self.create_segment(
+                    Vec2d(x_start, y_start), 
+                    Vec2d(x_end, y_end)
+                )
                 self.space.add(*new_segment)
                 self.segments.append(new_segment)
         
-        # if lx > xlscreen:
-            # for ...
+        if lx > xlscreen:
+            for x_end in range(int(lx), int(xlscreen), -self.segment_width):
+                x_start = x_end - self.segment_width
+                y_start = self.get_y(x_start)
+                first_body, first_shape = self.segments[0]
+                y_end = first_body.local_to_world(first_shape.a).y
+                new_segment = self.create_segment(
+                    Vec2d(x_start, y_start), 
+                    Vec2d(x_end, y_end)
+                )
+                self.space.add(*new_segment)
+                self.segments.insert(0, new_segment)
         
     def render(self, display: Surface, shift_x: float):
         h = display.get_height()
@@ -247,6 +261,9 @@ class VehicleScene(AbsctractScene):
         self.terrain = Terrain(0, 1500, 100, 50, 150, self.space)
         self.bg = Background()
         
+        self.physical_mouse = Ball(Vec2d(400, 200), 20, self.space)
+        self.physical_mouse.body.mass = 50000
+        
         self.origin_x = self.car.body.position.x
         
     def get_distance(self):
@@ -267,12 +284,30 @@ class VehicleScene(AbsctractScene):
         self.handle_pressed_keys(pk)
         self.car.motor.rate *= 0.95
         
+        
+        pressed = pygame.mouse.get_pressed()
+        mouse_pos = pygame.mouse.get_pos()
+        
+        if not pressed[0]:
+            return
+        
+        shift_x = self.get_distance()
+        pymunk_mouse_pos = convert(mouse_pos + pygame.Vector2(shift_x, 0), WINDOW_HEIGHT)
+        
+        self.physical_mouse.body.apply_force_at_world_point((0, 1000000000), pymunk_mouse_pos)
+        
+        # shift_x = self.get_distance()
+        # pymunk_mouse_pos = convert(mouse_pos + pygame.Vector2(shift_x, 0), WINDOW_HEIGHT)
+        # self.physical_mouse.body.position = pymunk_mouse_pos
+        
     def render(self, display: Surface) -> None:
         shift_x = self.get_distance()
         
         self.bg.render(display, shift_x)
         self.terrain.render(display, shift_x)
         self.car.render(display, shift_x)
+        
+        self.physical_mouse.render(display, shift_x)
         
 
 game = Game(

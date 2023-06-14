@@ -14,20 +14,23 @@ class Ball:
         
         space.add(self.body, self.shape)
 
-    def render(self, display: Surface) -> None:
+    def render(self, display: Surface, shift_x: float = 0) -> None:
         h = display.get_height()
         r = self.shape.radius
-        pygame.draw.circle(display, (255, 0, 0), convert(self.body.position, h), r)
+        target_position = convert(self.body.position, h)
+        shifted_position = pygame.Vector2(target_position) - pygame.Vector2(shift_x, 0)
+        pygame.draw.circle(display, (255, 0, 0), shifted_position, r)
         
         alpha = self.body.angle
         r = self.shape.radius
         
-        start_pos = convert(self.body.position, h)
-        end_pos = (
-            start_pos[0] + r * cos(alpha),
-            start_pos[1] - r * sin(alpha),
-        )
-        pygame.draw.line(display, (0, 0, 0), start_pos, end_pos, 1)
+        if shift_x == 0:
+            start_pos = convert(self.body.position, h)
+            end_pos = (
+                start_pos[0] + r * cos(alpha),
+                start_pos[1] - r * sin(alpha),
+            )
+            pygame.draw.line(display, (0, 0, 0), start_pos, end_pos, 1)
 
 
 class CustomPinJoint(PinJoint):
@@ -76,11 +79,13 @@ class PendulumScene(AbsctractScene):
         self.ball2.render(display)
         self.pin.render(display)
 
-game = Game(
-    window_size=(500, 500),
-    background_color=(255, 255, 255),
-    fps=60,
-)
 
-game.load_scene(PendulumScene)
-game.run()
+if __name__ == "__main__":
+    game = Game(
+        window_size=(500, 500),
+        background_color=(255, 255, 255),
+        fps=60,
+    )
+
+    game.load_scene(PendulumScene)
+    game.run()
