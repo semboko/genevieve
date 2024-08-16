@@ -47,8 +47,9 @@ def is_outside(x, y):
         y > 1.5 * UNIT,
         y < -1.5 * UNIT,
     )
-    
+
     return any(conditions)
+
 
 def detect_line(coord):
     if coord > 0.5 * UNIT:

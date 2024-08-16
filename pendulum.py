@@ -20,10 +20,10 @@ class Ball:
         target_position = convert(self.body.position, h)
         shifted_position = pygame.Vector2(target_position) - pygame.Vector2(shift_x, 0)
         pygame.draw.circle(display, (255, 0, 0), shifted_position, r)
-        
+
         alpha = self.body.angle
         r = self.shape.radius
-        
+
         if shift_x == 0:
             start_pos = convert(self.body.position, h)
             end_pos = (

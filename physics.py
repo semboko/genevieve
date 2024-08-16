@@ -31,29 +31,31 @@ floor_shape.friction = 1
 
 space.add(floor_body, floor_shape)
 
+
 def convert(pos: Tuple[float, float], h: int) -> Tuple[int, int]:
     x, y = pos
     return round(x), round(h - y)
+
 
 while True:
     for e in pygame.event.get():
         if e.type == pygame.QUIT:
             pygame.quit()
             exit()
-        
+
     display.fill((255, 255, 255))
     a = convert(body.position, 500)
     pygame.draw.circle(display, (255, 0, 0), a, 30)
-    
+
     start_pos = convert(floor_body.local_to_world(floor_shape.a), 500)
     end_pos = convert(floor_body.local_to_world(floor_shape.b), 500)
     pygame.draw.line(display, (0, 0, 0), start_pos, end_pos, 1)
-    
+
     b_x = a[0] + cos(body.angle) * 30
     b_y = a[1] - sin(body.angle) * 30
-    
+
     pygame.draw.line(display, (0, 0, 0), a, (b_x, b_y), 1)
-    
+
     pygame.display.update()
     clock.tick(60)
     space.step(1/60)
